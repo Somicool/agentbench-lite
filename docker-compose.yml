@@ -1,0 +1,45 @@
+# UI: http://localhost:5173   API docs: not published (reach it through the UI proxy)
+#
+# The backend runs candidate code inside its own container, so the container is the
+# isolation boundary: unprivileged user, read-only filesystem, no capabilities, and an
+# `internal` network with no route to the internet.
+#
+# NOTE: there is no authentication. Ports are bound to 127.0.0.1 only; do not expose them.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    networks: [internal]
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    pids_limit: 256
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "127.0.0.1:5173:80"
+    networks: [internal, default]
+    depends_on: [backend]
+    restart: unless-stopped
+
+  # Optional: `docker compose --profile tools build sandbox-image` builds the image used by
+  # AGENTBENCH_EXECUTION_MODE=docker when the backend runs directly on the host.
+  sandbox-image:
+    profiles: [tools]
+    image: agentbench-sandbox
+    build:
+      context: .
+      dockerfile: docker/sandbox.Dockerfile
+
+networks:
+  internal:
+    internal: true
